@@ -1,0 +1,32 @@
+-- EconIQ Setup Script
+-- Run this once to set up the full EconIQ pipeline environment
+
+ALTER WAREHOUSE HACKATHON_WH SET WAREHOUSE_SIZE = 'LARGE';
+-- Step 1: create database, schema, and warehouse
+CREATE DATABASE IF NOT EXISTS HACKATHON;
+CREATE SCHEMA IF NOT EXISTS HACKATHON.DATA;
+CREATE WAREHOUSE IF NOT EXISTS HACKATHON_WH
+  WAREHOUSE_SIZE = 'SMALL' AUTO_SUSPEND = 60;
+
+-- Step 2: verify access to the free Marketplace data
+SHOW DATABASES LIKE 'SNOWFLAKE_PUBLIC_DATA_FREE';
+SHOW SCHEMAS IN DATABASE SNOWFLAKE_PUBLIC_DATA_FREE;
+
+-- Step 3: set context before creating the search service
+USE DATABASE HACKATHON;
+USE SCHEMA HACKATHON.DATA;
+
+-- Step 4: create Cortex Search service over the 209k chunk corpus
+-- Arctic Embed handles vectorization automatically
+CREATE OR REPLACE CORTEX SEARCH SERVICE HACKATHON.DATA.RAG_SEARCH
+  ON CHUNK_TEXT
+  ATTRIBUTES SOURCE, TITLE, METADATA
+  WAREHOUSE = HACKATHON_WH
+  TARGET_LAG = '1 minute'
+  AS (
+    SELECT CHUNK_ID, CHUNK_TEXT, SOURCE, TITLE, METADATA
+    FROM HACKATHON.DATA.CHUNKS
+  );
+
+-- Step 5: verify the service is ACTIVE and shows correct row count
+DESCRIBE CORTEX SEARCH SERVICE HACKATHON.DATA.RAG_SEARCH;
